@@ -29,7 +29,6 @@ class ToolsSpider(scrapy.Spider):
         # Find all page URLs and add them to our crawl
         if response.url == BASE_URL:  # we only need to check for all pages on the first page
             last_page = int(response.css("a.pagination-link::text").getall()[-1])
-            last_page = 1  # DEBUG
             all_pages = [BASE_URL[:-1] + str(page) for page in range(2, last_page + 1)]  # reconstruct page URLs
             yield from response.follow_all(all_pages, callback=self.parse)
 
