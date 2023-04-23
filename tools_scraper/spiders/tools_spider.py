@@ -6,8 +6,10 @@ from scrapy import Selector
 
 DATA_PATH: Path = Path("./data/tools")
 BASE_URL = "https://oecd.ai/en/catalogue/tools?page=1"
-ICON_TO_TAXONOMY = {"icon-TopicsRelatedtotheResults": "related",
-                    "icon-Public": "country"}
+ICON_TO_TAXONOMY = {
+    "icon-TopicsRelatedtotheResults": "related",
+    "icon-Public": "country",
+}
 
 
 def convert_date(date: str) -> str:
@@ -40,8 +42,9 @@ class ToolsSpider(scrapy.Spider):
 
     def parse_tool(self, response):
         """Method to scrape individual tool pages."""
+
         def extract_with_css(base: Selector, query: str) -> str:
-            return base.css(query).get(default='').strip().replace("\xa0", " ")
+            return base.css(query).get(default="").strip().replace("\xa0", " ")
 
         def extract_all_with_css(base: Selector, query: str) -> list[str]:
             return [part.replace("\xa0", " ") for part in base.css(query).getall()]
@@ -50,7 +53,7 @@ class ToolsSpider(scrapy.Spider):
             sections = base.css("div.card div.is-flex")
             about = {}
             for section in sections:
-                key = section.css("p::text").get(default='').strip().rstrip(":")
+                key = section.css("p::text").get(default="").strip().rstrip(":")
                 values = [value.strip() for value in section.css("li ::text").getall()]
                 about[key] = values
             return about
@@ -79,12 +82,12 @@ class ToolsSpider(scrapy.Spider):
         tools_path.joinpath(f"{response.url.split('/')[-1]}.html").write_bytes(response.body)
 
         yield {
-            'name': extract_with_css(response, 'h2.title::text'),
-            'url': response.url,
+            "name": extract_with_css(response, "h2.title::text"),
+            "url": response.url,
             **extract_badges_list(response),
             **extract_taxonomy_list(response),
-            'uploaded_date': convert_date(extract_with_css(response, '.content::text').replace("Uploaded on ", "")),
-            'organisation': extract_with_css(response, '.is-8 span.country-label::text'),
-            'text': "\n".join(extract_all_with_css(response.css('.is-8 > div')[-1], '::text')),  # only use top lvl divs
-            **extract_about_tool(response)
+            "uploaded_date": convert_date(extract_with_css(response, ".content::text").replace("Uploaded on ", "")),
+            "organisation": extract_with_css(response, ".is-8 span.country-label::text"),
+            "text": "\n".join(extract_all_with_css(response.css(".is-8 > div")[-1], "::text")),  # only use top lvl divs
+            **extract_about_tool(response),
         }
