@@ -2,11 +2,17 @@ from datetime import datetime
 from pathlib import Path
 
 import scrapy
+from scrapy import Selector
 
 DATA_PATH: Path = Path("./data/tools")
 BASE_URL = "https://oecd.ai/en/catalogue/tools?page=1"
 ICON_TO_TAXONOMY = {"icon-TopicsRelatedtotheResults": "related",
                     "icon-Public": "country"}
+
+
+def convert_date(date: str) -> str:
+    """Converts date from 'Month day, year' to ISO-8601 format, e.g. Apr 30, 2023 to 2023-04-30"""
+    return datetime.strptime(date, "%b %d, %Y").strftime("%Y-%m-%d")
 
 
 class ToolsSpider(scrapy.Spider):
@@ -34,14 +40,14 @@ class ToolsSpider(scrapy.Spider):
 
     def parse_tool(self, response):
         """Method to scrape individual tool pages."""
-        def extract_with_css(base, query: str) -> str:
+        def extract_with_css(base: Selector, query: str) -> str:
             return base.css(query).get(default='').strip().replace("\xa0", " ")
 
-        def extract_all_with_css(base, query: str) -> list[str]:
+        def extract_all_with_css(base: Selector, query: str) -> list[str]:
             return [part.replace("\xa0", " ") for part in base.css(query).getall()]
 
-        def extract_about_tool() -> dict[str, list[str]]:
-            sections = response.css("div.card div.is-flex")
+        def extract_about_tool(base: Selector) -> dict[str, list[str]]:
+            sections = base.css("div.card div.is-flex")
             about = {}
             for section in sections:
                 key = section.css("p::text").get(default='').strip().rstrip(":")
@@ -49,8 +55,8 @@ class ToolsSpider(scrapy.Spider):
                 about[key] = values
             return about
 
-        def extract_taxonomy_list() -> dict[str, list[str]]:
-            icons = response.css(".icon-text div")
+        def extract_taxonomy_list(base: Selector) -> dict[str, list[str]]:
+            icons = base.css(".icon-text div")
 
             taxonomy = {"related": [], "country": []}
             for icon in icons:
@@ -62,14 +68,10 @@ class ToolsSpider(scrapy.Spider):
                 taxonomy[key] = [string.strip() for string in extract_all_with_css(icon, "::text")]
             return taxonomy
 
-        def extract_badges_list() -> dict[str, list[str]]:
-            badge_names = response.css(".field span::text").getall()
-            badge_links = response.css(".field a::attr(href)").getall()
+        def extract_badges_list(base: Selector) -> dict[str, list[str]]:
+            badge_names = base.css(".field span::text").getall()
+            badge_links = base.css(".field a::attr(href)").getall()
             return {name: link for name, link in zip(badge_names, badge_links)}
-
-        def convert_date(date: str) -> str:
-            """Converts date to ISO-8601 format, e.g. Apr 30, 2023 to 2023-04-30"""
-            return datetime.strptime(date, "%b %d, %Y").strftime("%Y-%m-%d")
 
         # Store the files
         tools_path = DATA_PATH / "tools/"
@@ -79,10 +81,10 @@ class ToolsSpider(scrapy.Spider):
         yield {
             'name': extract_with_css(response, 'h2.title::text'),
             'url': response.url,
-            **extract_badges_list(),
-            **extract_taxonomy_list(),
+            **extract_badges_list(response),
+            **extract_taxonomy_list(response),
             'uploaded_date': convert_date(extract_with_css(response, '.content::text').replace("Uploaded on ", "")),
             'organisation': extract_with_css(response, '.is-8 span.country-label::text'),
-            'text': "\n".join(extract_all_with_css(response.css('.is-8 div')[-1], '::text')),
-            **extract_about_tool()
+            'text': "\n".join(extract_all_with_css(response.css('.is-8 > div')[-1], '::text')),  # only use top lvl divs
+            **extract_about_tool(response)
         }
