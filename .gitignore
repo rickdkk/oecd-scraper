@@ -155,6 +155,7 @@ cython_debug/
 # Data
 data/
 *.jsonl
+*.7z
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
